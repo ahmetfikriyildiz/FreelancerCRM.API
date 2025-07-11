@@ -1,0 +1,6 @@
+@FreelancerCRM.API_HostAddress = http://localhost:5172
+
+GET {{FreelancerCRM.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
