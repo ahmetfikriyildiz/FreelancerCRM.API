@@ -24,22 +24,6 @@ namespace FreelancerCRM.API.DTOs
         [StringLength(15, ErrorMessage = "Telefon numarası en fazla 15 karakter olabilir")]
         public string? PhoneNumber { get; set; }
 
-        [StringLength(11, MinimumLength = 11, ErrorMessage = "TCKN 11 haneli olmalıdır")]
-        public string? TCKN { get; set; }
-
-        [StringLength(10, MinimumLength = 10, ErrorMessage = "Vergi numarası 10 haneli olmalıdır")]
-        public string? TaxNumber { get; set; }
-
-        [StringLength(100, ErrorMessage = "Vergi dairesi en fazla 100 karakter olabilir")]
-        public string? TaxOffice { get; set; }
-
-        public bool IsKDVMukellefi { get; set; } = false;
-
-        [StringLength(200, ErrorMessage = "Adres en fazla 200 karakter olabilir")]
-        public string? Address { get; set; }
-
-        public bool KVKKConsent { get; set; } = false;
-
         public bool IsActive { get; set; } = true;
     }
 
@@ -120,6 +104,9 @@ namespace FreelancerCRM.API.DTOs
 
     public class UserChangePasswordDto
     {
+        [Required(ErrorMessage = "Kullanıcı ID zorunludur")]
+        public int UserId { get; set; }
+
         [Required(ErrorMessage = "Mevcut şifre alanı zorunludur")]
         public string CurrentPassword { get; set; } = string.Empty;
 

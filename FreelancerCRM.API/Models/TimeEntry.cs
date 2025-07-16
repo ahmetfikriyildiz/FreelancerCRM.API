@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace FreelancerCRM.API.Models;
 
-public class TimeEntry
+public class TimeEntry : BaseEntity
 {
     [Key]
     public int TimeEntryID { get; set; }
@@ -26,8 +26,6 @@ public class TimeEntry
     public decimal WithholdingTaxAmount => StopajAmount; // Mapping için alias
     public string? Description { get; set; }
     public DateTime Date { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
     // Türkiye'ye özgü alanlar
     public decimal StopajRate { get; set; } = 0.20m;
     public decimal StopajAmount { get; set; }

@@ -1,3 +1,5 @@
+using AutoMapper;
+using FreelancerCRM.API.DTOs;
 using FreelancerCRM.API.Models;
 using FreelancerCRM.API.Repositories.Interfaces;
 using FreelancerCRM.API.Services.Interfaces;
@@ -5,10 +7,13 @@ using Microsoft.Extensions.Logging;
 
 namespace FreelancerCRM.API.Services;
 
-public class InvoiceService : BaseService<Invoice>, IInvoiceService
+public class InvoiceService : BaseService<Invoice, InvoiceCreateDto, InvoiceUpdateDto, InvoiceResponseDto, InvoiceSummaryDto>, IInvoiceService
 {
-    public InvoiceService(IUnitOfWork unitOfWork, ILogger<InvoiceService> logger) 
-        : base(unitOfWork, logger)
+    public InvoiceService(
+        IUnitOfWork unitOfWork, 
+        ILogger<InvoiceService> logger,
+        IMapper mapper) 
+        : base(unitOfWork, logger, mapper)
     {
     }
 
@@ -56,20 +61,75 @@ public class InvoiceService : BaseService<Invoice>, IInvoiceService
             errors.Add("Client ID is required");
         }
 
+        if (entity.IssueDate > entity.DueDate)
+        {
+            errors.Add("Due date must be after issue date");
+        }
+
+        if (entity.Subtotal < 0)
+        {
+            errors.Add("Subtotal cannot be negative");
+        }
+
+        if (entity.TaxRate < 0 || entity.TaxRate > 100)
+        {
+            errors.Add("Tax rate must be between 0 and 100");
+        }
+
+        if (entity.DiscountRate < 0 || entity.DiscountRate > 100)
+        {
+            errors.Add("Discount rate must be between 0 and 100");
+        }
+
         await Task.CompletedTask;
         return errors.Any() ? ValidationResult.Failure(errors) : ValidationResult.Success();
     }
 
     protected override async Task<(bool CanDelete, string Reason)> CanDeleteEntityAsync(Invoice entity)
     {
-        if (entity.Status == "Paid")
+        // Check if invoice has any payments
+        if (entity.PaidAmount > 0)
         {
-            await Task.CompletedTask;
-            return (false, "Cannot delete paid invoices");
+            return (false, "Cannot delete invoice with payments");
         }
 
         await Task.CompletedTask;
         return (true, string.Empty);
+    }
+
+    public async Task<ServiceResult<decimal>> CalculateInvoiceTotalsAsync(Invoice invoice)
+    {
+        try
+        {
+            // Calculate subtotal from invoice items
+            decimal subtotal = 0;
+            if (invoice.InvoiceItems != null)
+            {
+                subtotal = invoice.InvoiceItems.Sum(item => item.TotalPrice);
+            }
+            invoice.Subtotal = subtotal;
+
+            // Calculate tax amount
+            invoice.TaxAmount = invoice.Subtotal * (invoice.TaxRate / 100);
+
+            // Calculate discount amount
+            invoice.DiscountAmount = invoice.Subtotal * (invoice.DiscountRate / 100);
+
+            // Calculate total amount
+            invoice.TotalAmount = invoice.Subtotal + invoice.TaxAmount - invoice.DiscountAmount;
+
+            // Calculate outstanding amount
+            invoice.OutstandingAmount = invoice.TotalAmount - invoice.PaidAmount;
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return ServiceResult<decimal>.Success(invoice.TotalAmount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating invoice totals");
+            return ServiceResult<decimal>.Failure("An error occurred while calculating invoice totals");
+        }
     }
 
     // Basic implementations
@@ -185,8 +245,8 @@ public class InvoiceService : BaseService<Invoice>, IInvoiceService
             await _unitOfWork.BeginTransactionAsync();
 
             invoice.Status = "Paid";
+            invoice.PaidAt = paidDate;
             invoice.UpdatedAt = DateTime.UtcNow;
-            // Note: You might want to add a PaidDate field to the Invoice entity
 
             await _unitOfWork.Invoices.UpdateAsync(invoice);
             await _unitOfWork.SaveChangesAsync();
@@ -197,7 +257,7 @@ public class InvoiceService : BaseService<Invoice>, IInvoiceService
         catch (Exception ex)
         {
             await _unitOfWork.RollbackTransactionAsync();
-            _logger.LogError(ex, "Error marking invoice as paid {InvoiceId}", invoiceId);
+            _logger.LogError(ex, "Error marking invoice {InvoiceId} as paid", invoiceId);
             return ServiceResult<bool>.Failure("An error occurred while marking invoice as paid");
         }
     }
@@ -246,7 +306,7 @@ public class InvoiceService : BaseService<Invoice>, IInvoiceService
         try
         {
             var items = await _unitOfWork.InvoiceItems.GetItemsByInvoiceIdAsync(invoiceId);
-            var subtotal = items.Sum(item => item.Amount);
+            var subtotal = items.Sum(item => item.TotalPrice);
 
             var invoice = await _unitOfWork.Invoices.GetByIdAsync(invoiceId);
             if (invoice == null)
@@ -359,9 +419,180 @@ public class InvoiceService : BaseService<Invoice>, IInvoiceService
         }
     }
 
-    // TODO: Implement remaining interface methods
-    public Task<ServiceResult<Invoice>> CreateInvoiceFromTimeEntriesAsync(int userId, int clientId, int? projectId, List<int> timeEntryIds) => throw new NotImplementedException();
-    public Task<ServiceResult<Invoice>> CreateInvoiceFromProjectAsync(int projectId) => throw new NotImplementedException();
-    public Task<ServiceResult<bool>> SendInvoiceAsync(int invoiceId) => throw new NotImplementedException();
-    public Task<ServiceResult<bool>> UpdatePaymentTermsAsync(int invoiceId, string paymentTerms) => throw new NotImplementedException();
+    public async Task<ServiceResult<Invoice>> CreateInvoiceFromTimeEntriesAsync(int userId, int clientId, int? projectId, List<int> timeEntryIds)
+    {
+        try
+        {
+            if (timeEntryIds == null || !timeEntryIds.Any())
+            {
+                return ServiceResult<Invoice>.Failure("No time entries provided");
+            }
+
+            // Get time entries one by one since we don't have GetTimeEntriesByIdsAsync
+            var timeEntries = new List<TimeEntry>();
+            foreach (var id in timeEntryIds)
+            {
+                var timeEntry = await _unitOfWork.TimeEntries.GetByIdAsync(id);
+                if (timeEntry != null)
+                {
+                    timeEntries.Add(timeEntry);
+                }
+            }
+
+            if (!timeEntries.Any())
+            {
+                return ServiceResult<Invoice>.Failure("No valid time entries found");
+            }
+
+            await _unitOfWork.BeginTransactionAsync();
+
+            var invoice = new Invoice
+            {
+                UserID = userId,
+                ClientID = clientId,
+                ProjectID = projectId,
+                IssueDate = DateTime.UtcNow,
+                DueDate = DateTime.UtcNow.AddDays(30), // Default 30 days
+                Status = "Draft",
+                InvoiceNumber = await _unitOfWork.Invoices.GenerateInvoiceNumberAsync()
+            };
+
+            await _unitOfWork.Invoices.AddAsync(invoice);
+            await _unitOfWork.SaveChangesAsync();
+
+            // Create invoice items from time entries
+            foreach (var timeEntry in timeEntries)
+            {
+                var invoiceItem = new InvoiceItem
+                {
+                    InvoiceID = invoice.InvoiceID,
+                    Description = $"Time entry: {timeEntry.Description}",
+                    Quantity = timeEntry.Duration,
+                    UnitPrice = timeEntry.HourlyRate,
+                    TotalPrice = timeEntry.Duration * timeEntry.HourlyRate
+                };
+
+                await _unitOfWork.InvoiceItems.AddAsync(invoiceItem);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            // Calculate totals
+            await CalculateInvoiceTotalsAsync(invoice);
+            
+            await _unitOfWork.CommitTransactionAsync();
+
+            return ServiceResult<Invoice>.Success(invoice);
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Error creating invoice from time entries");
+            return ServiceResult<Invoice>.Failure("An error occurred while creating invoice from time entries");
+        }
+    }
+
+    public async Task<ServiceResult<Invoice>> CreateInvoiceFromProjectAsync(int projectId)
+    {
+        try
+        {
+            var project = await _unitOfWork.Projects.GetByIdAsync(projectId);
+            if (project == null)
+            {
+                return ServiceResult<Invoice>.Failure("Project not found");
+            }
+
+            var timeEntries = await _unitOfWork.TimeEntries.GetTimeEntriesByProjectIdAsync(projectId);
+            if (!timeEntries.Any())
+            {
+                return ServiceResult<Invoice>.Failure("No time entries found for this project");
+            }
+
+            return await CreateInvoiceFromTimeEntriesAsync(
+                project.UserID,
+                project.ClientID,
+                projectId,
+                timeEntries.Select(te => te.TimeEntryID).ToList());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating invoice from project {ProjectId}", projectId);
+            return ServiceResult<Invoice>.Failure("An error occurred while creating invoice from project");
+        }
+    }
+
+    public async Task<ServiceResult<bool>> SendInvoiceAsync(int invoiceId)
+    {
+        try
+        {
+            var invoice = await _unitOfWork.Invoices.GetByIdAsync(invoiceId);
+            if (invoice == null)
+            {
+                return ServiceResult<bool>.Failure("Invoice not found");
+            }
+
+            if (invoice.Status != "Draft")
+            {
+                return ServiceResult<bool>.Failure("Only draft invoices can be sent");
+            }
+
+            await _unitOfWork.BeginTransactionAsync();
+
+            invoice.Status = "Sent";
+            invoice.UpdatedAt = DateTime.UtcNow;
+
+            await _unitOfWork.Invoices.UpdateAsync(invoice);
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+
+            // TODO: Implement email sending logic here
+
+            return ServiceResult<bool>.Success(true);
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Error sending invoice {InvoiceId}", invoiceId);
+            return ServiceResult<bool>.Failure("An error occurred while sending the invoice");
+        }
+    }
+
+    public async Task<ServiceResult<bool>> UpdatePaymentTermsAsync(int invoiceId, string paymentTerms)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(paymentTerms))
+            {
+                return ServiceResult<bool>.Failure("Payment terms cannot be empty");
+            }
+
+            var invoice = await _unitOfWork.Invoices.GetByIdAsync(invoiceId);
+            if (invoice == null)
+            {
+                return ServiceResult<bool>.Failure("Invoice not found");
+            }
+
+            if (invoice.Status == "Paid" || invoice.Status == "Cancelled")
+            {
+                return ServiceResult<bool>.Failure("Cannot update payment terms for paid or cancelled invoices");
+            }
+
+            await _unitOfWork.BeginTransactionAsync();
+
+            invoice.PaymentTerms = paymentTerms;
+            invoice.UpdatedAt = DateTime.UtcNow;
+
+            await _unitOfWork.Invoices.UpdateAsync(invoice);
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+
+            return ServiceResult<bool>.Success(true);
+        }
+        catch (Exception ex)
+        {
+            await _unitOfWork.RollbackTransactionAsync();
+            _logger.LogError(ex, "Error updating payment terms for invoice {InvoiceId}", invoiceId);
+            return ServiceResult<bool>.Failure("An error occurred while updating payment terms");
+        }
+    }
 } 

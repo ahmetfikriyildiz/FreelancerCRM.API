@@ -1,3 +1,5 @@
+using AutoMapper;
+using FreelancerCRM.API.DTOs;
 using FreelancerCRM.API.Models;
 using FreelancerCRM.API.Repositories.Interfaces;
 using FreelancerCRM.API.Services.Interfaces;
@@ -6,10 +8,13 @@ using System.Text.RegularExpressions;
 
 namespace FreelancerCRM.API.Services;
 
-public class ClientService : BaseService<Client>, IClientService
+public class ClientService : BaseService<Client, ClientCreateDto, ClientUpdateDto, ClientResponseDto, ClientSummaryDto>, IClientService
 {
-    public ClientService(IUnitOfWork unitOfWork, ILogger<ClientService> logger) 
-        : base(unitOfWork, logger)
+    public ClientService(
+        IUnitOfWork unitOfWork,
+        ILogger<ClientService> logger,
+        IMapper mapper)
+        : base(unitOfWork, logger, mapper)
     {
     }
 
@@ -59,35 +64,33 @@ public class ClientService : BaseService<Client>, IClientService
         }
 
         // Email validation
-        if (!string.IsNullOrWhiteSpace(entity.Email) && !IsValidEmail(entity.Email))
+        if (!string.IsNullOrWhiteSpace(entity.Email))
         {
-            errors.Add("Invalid email format");
+            var emailRegex = new Regex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+            if (!emailRegex.IsMatch(entity.Email))
+            {
+                errors.Add("Invalid email format");
+            }
         }
 
         // Phone validation
-        if (!string.IsNullOrWhiteSpace(entity.Phone) && !IsValidPhone(entity.Phone))
+        if (!string.IsNullOrWhiteSpace(entity.Phone))
         {
-            errors.Add("Invalid phone number format");
+            var phoneRegex = new Regex(@"^\+?[\d\s-]{10,}$");
+            if (!phoneRegex.IsMatch(entity.Phone))
+            {
+                errors.Add("Invalid phone number format");
+            }
         }
 
-        // Tax number validation
-        if (!string.IsNullOrWhiteSpace(entity.TaxNumber) && !IsValidTaxNumber(entity.TaxNumber))
+        // Website validation
+        if (!string.IsNullOrWhiteSpace(entity.Website))
         {
-            errors.Add("Invalid tax number format");
-        }
-
-        // Priority validation
-        if (!string.IsNullOrWhiteSpace(entity.Priority) && 
-            !new[] { "High", "Medium", "Low" }.Contains(entity.Priority))
-        {
-            errors.Add("Priority must be High, Medium, or Low");
-        }
-
-        // Status validation
-        if (!string.IsNullOrWhiteSpace(entity.Status) && 
-            !new[] { "Active", "Inactive", "Archived" }.Contains(entity.Status))
-        {
-            errors.Add("Status must be Active, Inactive, or Archived");
+            var websiteRegex = new Regex(@"^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$");
+            if (!websiteRegex.IsMatch(entity.Website))
+            {
+                errors.Add("Invalid website URL format");
+            }
         }
 
         await Task.CompletedTask;
@@ -96,16 +99,16 @@ public class ClientService : BaseService<Client>, IClientService
 
     protected override async Task<(bool CanDelete, string Reason)> CanDeleteEntityAsync(Client entity)
     {
-        // Check if client has active projects
-        var projectCount = await _unitOfWork.Projects.CountAsync(p => p.ClientID == entity.ClientID);
-        if (projectCount > 0)
+        // Check if client has any projects
+        var hasProjects = await _unitOfWork.Projects.ExistsAsync(p => p.ClientID == entity.ClientID);
+        if (hasProjects)
         {
             return (false, "Cannot delete client with existing projects");
         }
 
-        // Check if client has invoices
-        var invoiceCount = await _unitOfWork.Invoices.CountAsync(i => i.ClientID == entity.ClientID);
-        if (invoiceCount > 0)
+        // Check if client has any invoices
+        var hasInvoices = await _unitOfWork.Invoices.ExistsAsync(i => i.ClientID == entity.ClientID);
+        if (hasInvoices)
         {
             return (false, "Cannot delete client with existing invoices");
         }
@@ -114,12 +117,12 @@ public class ClientService : BaseService<Client>, IClientService
     }
     #endregion
 
-    #region Client-Specific Methods
+    #region Interface Implementation
     public async Task<ServiceResult<IEnumerable<Client>>> GetClientsByUserIdAsync(int userId)
     {
         try
         {
-            var clients = await _unitOfWork.Clients.GetClientsByUserIdAsync(userId);
+            var clients = await _unitOfWork.Clients.FindAsync(c => c.UserID == userId);
             return ServiceResult<IEnumerable<Client>>.Success(clients);
         }
         catch (Exception ex)
@@ -133,7 +136,7 @@ public class ClientService : BaseService<Client>, IClientService
     {
         try
         {
-            var clients = await _unitOfWork.Clients.GetActiveClientsAsync();
+            var clients = await _unitOfWork.Clients.FindAsync(c => c.Status != "Inactive" && !c.IsArchived);
             return ServiceResult<IEnumerable<Client>>.Success(clients);
         }
         catch (Exception ex)
@@ -147,32 +150,41 @@ public class ClientService : BaseService<Client>, IClientService
     {
         try
         {
-            var clients = await _unitOfWork.Clients.GetClientsByStatusAsync(status);
+            var clients = await _unitOfWork.Clients.FindAsync(c => c.Status == status);
             return ServiceResult<IEnumerable<Client>>.Success(clients);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting clients by status {Status}", status);
+            _logger.LogError(ex, "Error getting clients with status {Status}", status);
             return ServiceResult<IEnumerable<Client>>.Failure("An error occurred while retrieving clients");
         }
     }
 
-    public async Task<ServiceResult<IEnumerable<Client>>> SearchClientsAsync(string searchTerm)
+    public async Task<ServiceResult<IEnumerable<Client>>> GetClientsByIndustryAsync(string industry)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(searchTerm))
-            {
-                return ServiceResult<IEnumerable<Client>>.ValidationFailure(new List<string> { "Search term is required" });
-            }
-
-            var clients = await _unitOfWork.Clients.SearchClientsAsync(searchTerm);
+            var clients = await _unitOfWork.Clients.FindAsync(c => c.Industry == industry);
             return ServiceResult<IEnumerable<Client>>.Success(clients);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching clients with term {SearchTerm}", searchTerm);
-            return ServiceResult<IEnumerable<Client>>.Failure("An error occurred while searching clients");
+            _logger.LogError(ex, "Error getting clients in industry {Industry}", industry);
+            return ServiceResult<IEnumerable<Client>>.Failure("An error occurred while retrieving clients");
+        }
+    }
+
+    public async Task<ServiceResult<IEnumerable<Client>>> GetClientsByCityAsync(string city)
+    {
+        try
+        {
+            var clients = await _unitOfWork.Clients.FindAsync(c => c.City == city);
+            return ServiceResult<IEnumerable<Client>>.Success(clients);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting clients in city {City}", city);
+            return ServiceResult<IEnumerable<Client>>.Failure("An error occurred while retrieving clients");
         }
     }
 
@@ -180,10 +192,13 @@ public class ClientService : BaseService<Client>, IClientService
     {
         try
         {
-            var client = await _unitOfWork.Clients.GetClientWithProjectsAsync(clientId);
+            var client = await _unitOfWork.Clients.GetByIdWithIncludesAsync(
+                clientId,
+                c => c.Projects!);
+
             if (client == null)
             {
-                return ServiceResult<Client>.Failure("Client not found");
+                return ServiceResult<Client>.Failure($"Client with id {clientId} not found");
             }
 
             return ServiceResult<Client>.Success(client);
@@ -191,7 +206,7 @@ public class ClientService : BaseService<Client>, IClientService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting client with projects {ClientId}", clientId);
-            return ServiceResult<Client>.Failure("An error occurred while retrieving client");
+            return ServiceResult<Client>.Failure("An error occurred while retrieving the client");
         }
     }
 
@@ -199,10 +214,13 @@ public class ClientService : BaseService<Client>, IClientService
     {
         try
         {
-            var client = await _unitOfWork.Clients.GetClientWithInvoicesAsync(clientId);
+            var client = await _unitOfWork.Clients.GetByIdWithIncludesAsync(
+                clientId,
+                c => c.Invoices!);
+
             if (client == null)
             {
-                return ServiceResult<Client>.Failure("Client not found");
+                return ServiceResult<Client>.Failure($"Client with id {clientId} not found");
             }
 
             return ServiceResult<Client>.Success(client);
@@ -210,7 +228,7 @@ public class ClientService : BaseService<Client>, IClientService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting client with invoices {ClientId}", clientId);
-            return ServiceResult<Client>.Failure("An error occurred while retrieving client");
+            return ServiceResult<Client>.Failure("An error occurred while retrieving the client");
         }
     }
 
@@ -218,10 +236,14 @@ public class ClientService : BaseService<Client>, IClientService
     {
         try
         {
-            var client = await _unitOfWork.Clients.GetClientWithAllRelationsAsync(clientId);
+            var client = await _unitOfWork.Clients.GetByIdWithIncludesAsync(
+                clientId,
+                c => c.Projects!,
+                c => c.Invoices!);
+
             if (client == null)
             {
-                return ServiceResult<Client>.Failure("Client not found");
+                return ServiceResult<Client>.Failure($"Client with id {clientId} not found");
             }
 
             return ServiceResult<Client>.Success(client);
@@ -229,7 +251,7 @@ public class ClientService : BaseService<Client>, IClientService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting client with all relations {ClientId}", clientId);
-            return ServiceResult<Client>.Failure("An error occurred while retrieving client");
+            return ServiceResult<Client>.Failure("An error occurred while retrieving the client");
         }
     }
 
@@ -237,25 +259,21 @@ public class ClientService : BaseService<Client>, IClientService
     {
         try
         {
-            var client = await _unitOfWork.Clients.GetByIdAsync(clientId);
+            var client = await GetEntityByIdAsync(clientId);
             if (client == null)
             {
-                return ServiceResult<bool>.Failure("Client not found");
+                return ServiceResult<bool>.Failure($"Client with id {clientId} not found");
             }
 
-            client.Status = "Archived";
-            client.UpdatedAt = DateTime.UtcNow;
-
-            await _unitOfWork.BeginTransactionAsync();
-            await _unitOfWork.Clients.UpdateAsync(client);
+            client.IsArchived = true;
+            client.ArchivedAt = DateTime.UtcNow;
+            await UpdateEntityAsync(client);
             await _unitOfWork.SaveChangesAsync();
-            await _unitOfWork.CommitTransactionAsync();
 
             return ServiceResult<bool>.Success(true);
         }
         catch (Exception ex)
         {
-            await _unitOfWork.RollbackTransactionAsync();
             _logger.LogError(ex, "Error archiving client {ClientId}", clientId);
             return ServiceResult<bool>.Failure("An error occurred while archiving the client");
         }
@@ -265,25 +283,21 @@ public class ClientService : BaseService<Client>, IClientService
     {
         try
         {
-            var client = await _unitOfWork.Clients.GetByIdAsync(clientId);
+            var client = await GetEntityByIdAsync(clientId);
             if (client == null)
             {
-                return ServiceResult<bool>.Failure("Client not found");
+                return ServiceResult<bool>.Failure($"Client with id {clientId} not found");
             }
 
-            client.Status = "Active";
-            client.UpdatedAt = DateTime.UtcNow;
-
-            await _unitOfWork.BeginTransactionAsync();
-            await _unitOfWork.Clients.UpdateAsync(client);
+            client.IsArchived = false;
+            client.ArchivedAt = null;
+            await UpdateEntityAsync(client);
             await _unitOfWork.SaveChangesAsync();
-            await _unitOfWork.CommitTransactionAsync();
 
             return ServiceResult<bool>.Success(true);
         }
         catch (Exception ex)
         {
-            await _unitOfWork.RollbackTransactionAsync();
             _logger.LogError(ex, "Error unarchiving client {ClientId}", clientId);
             return ServiceResult<bool>.Failure("An error occurred while unarchiving the client");
         }
@@ -293,101 +307,23 @@ public class ClientService : BaseService<Client>, IClientService
     {
         try
         {
-            if (!new[] { "High", "Medium", "Low" }.Contains(priority))
-            {
-                return ServiceResult<bool>.ValidationFailure(new List<string> { "Priority must be High, Medium, or Low" });
-            }
-
-            var client = await _unitOfWork.Clients.GetByIdAsync(clientId);
+            var client = await GetEntityByIdAsync(clientId);
             if (client == null)
             {
-                return ServiceResult<bool>.Failure("Client not found");
+                return ServiceResult<bool>.Failure($"Client with id {clientId} not found");
             }
 
             client.Priority = priority;
-            client.UpdatedAt = DateTime.UtcNow;
-
-            await _unitOfWork.BeginTransactionAsync();
-            await _unitOfWork.Clients.UpdateAsync(client);
+            await UpdateEntityAsync(client);
             await _unitOfWork.SaveChangesAsync();
-            await _unitOfWork.CommitTransactionAsync();
 
             return ServiceResult<bool>.Success(true);
         }
         catch (Exception ex)
         {
-            await _unitOfWork.RollbackTransactionAsync();
             _logger.LogError(ex, "Error setting priority for client {ClientId}", clientId);
-            return ServiceResult<bool>.Failure("An error occurred while setting client priority");
+            return ServiceResult<bool>.Failure("An error occurred while setting the client priority");
         }
-    }
-
-    public async Task<ServiceResult<bool>> ValidateTaxNumberAsync(string taxNumber)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(taxNumber))
-            {
-                return ServiceResult<bool>.ValidationFailure(new List<string> { "Tax number is required" });
-            }
-
-            var isValid = IsValidTaxNumber(taxNumber);
-            await Task.CompletedTask;
-            return ServiceResult<bool>.Success(isValid);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error validating tax number {TaxNumber}", taxNumber);
-            return ServiceResult<bool>.Failure("An error occurred while validating tax number");
-        }
-    }
-
-    public async Task<ServiceResult<IEnumerable<Client>>> GetClientsByIndustryAsync(string industry)
-    {
-        try
-        {
-            var clients = await _unitOfWork.Clients.GetClientsByIndustryAsync(industry);
-            return ServiceResult<IEnumerable<Client>>.Success(clients);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting clients by industry {Industry}", industry);
-            return ServiceResult<IEnumerable<Client>>.Failure("An error occurred while retrieving clients");
-        }
-    }
-
-    public async Task<ServiceResult<IEnumerable<Client>>> GetClientsByCityAsync(string city)
-    {
-        try
-        {
-            var clients = await _unitOfWork.Clients.GetClientsByCityAsync(city);
-            return ServiceResult<IEnumerable<Client>>.Success(clients);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting clients by city {City}", city);
-            return ServiceResult<IEnumerable<Client>>.Failure("An error occurred while retrieving clients");
-        }
-    }
-    #endregion
-
-    #region Helper Methods
-    private bool IsValidEmail(string email)
-    {
-        return Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$");
-    }
-
-    private bool IsValidPhone(string phone)
-    {
-        return Regex.IsMatch(phone, @"^(\+90|0)?[1-9]\d{9}$");
-    }
-
-    private bool IsValidTaxNumber(string taxNumber)
-    {
-        if (string.IsNullOrWhiteSpace(taxNumber))
-            return false;
-
-        return Regex.IsMatch(taxNumber, @"^\d{10}$");
     }
     #endregion
 } 

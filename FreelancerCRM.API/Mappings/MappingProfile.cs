@@ -21,20 +21,20 @@ namespace FreelancerCRM.API.Mappings
         {
             // User Entity to DTOs
             CreateMap<User, UserResponseDto>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.UserID));
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id));
 
             CreateMap<User, UserSummaryDto>()
-                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.UserID));
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id));
 
             // DTOs to User Entity
             CreateMap<UserCreateDto, User>()
-                .ForMember(dest => dest.UserID, opt => opt.Ignore())
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
                 .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
                 .ForMember(dest => dest.PasswordHash, opt => opt.MapFrom(src => src.Password)); // Bu service'de hash'lenecek
 
             CreateMap<UserUpdateDto, User>()
-                .ForMember(dest => dest.UserID, opt => opt.Ignore())
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(src => DateTime.UtcNow))
                 .ForMember(dest => dest.PasswordHash, opt => opt.Ignore()); // Password güncelleme ayrı method'da

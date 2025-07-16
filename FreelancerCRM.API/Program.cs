@@ -5,11 +5,17 @@ using FreelancerCRM.API.Repositories.Interfaces;
 using FreelancerCRM.API.Services;
 using FreelancerCRM.API.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+// FluentValidation konfigürasyonu
+builder.Services.AddFluentValidationAutoValidation()
+    .AddFluentValidationClientsideAdapters()
+    .AddValidatorsFromAssemblyContaining<Program>();
 
 // Add DbContext
 builder.Services.AddDbContext<FreelancerCrmDbContext>(options =>

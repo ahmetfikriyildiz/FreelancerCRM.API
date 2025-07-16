@@ -1,8 +1,9 @@
+using FreelancerCRM.API.DTOs;
 using FreelancerCRM.API.Models;
 
 namespace FreelancerCRM.API.Services.Interfaces;
 
-public interface IAssignmentService : IBaseService<Assignment>
+public interface IAssignmentService : IBaseService<Assignment, AssignmentCreateDto, AssignmentUpdateDto, AssignmentResponseDto, AssignmentSummaryDto>
 {
     Task<ServiceResult<IEnumerable<Assignment>>> GetAssignmentsByProjectIdAsync(int projectId);
     Task<ServiceResult<IEnumerable<Assignment>>> GetAssignmentsByStatusAsync(string status);

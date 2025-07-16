@@ -10,7 +10,6 @@ public interface IClientRepository : IGenericRepository<Client>
     Task<IEnumerable<Client>> GetClientsByPriorityAsync(string priority);
     Task<IEnumerable<Client>> GetClientsByIndustryAsync(string industry);
     Task<IEnumerable<Client>> GetClientsByCityAsync(string city);
-    Task<Client?> GetClientByTaxNumberAsync(string taxNumber);
     Task<Client?> GetClientWithProjectsAsync(int clientId);
     Task<Client?> GetClientWithInvoicesAsync(int clientId);
     Task<Client?> GetClientWithAllRelationsAsync(int clientId);
