@@ -17,10 +17,21 @@ public class FreelancerCrmDbContext : DbContext
     public DbSet<TimeEntry> TimeEntries { get; set; } = null!;
     public DbSet<Invoice> Invoices { get; set; } = null!;
     public DbSet<InvoiceItem> InvoiceItems { get; set; } = null!;
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // RefreshToken için index oluşturma
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(r => r.Token)
+            .IsUnique();
+
+        // Token'ın benzersiz olmasını sağlama
+        modelBuilder.Entity<RefreshToken>()
+            .HasIndex(r => new { r.UserId, r.Token })
+            .IsUnique();
 
         // Project - User (Restrict)
         modelBuilder.Entity<Project>()

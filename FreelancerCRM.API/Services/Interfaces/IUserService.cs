@@ -1,20 +1,21 @@
+using FreelancerCRM.API.DTOs;
 using FreelancerCRM.API.Models;
 
 namespace FreelancerCRM.API.Services.Interfaces;
 
-public interface IUserService : IBaseService<User>
+/// <summary>
+/// Kullanıcı işlemlerini yöneten servis arayüzü
+/// </summary>
+public interface IUserService : IBaseService<User, UserCreateDto, UserUpdateDto, UserResponseDto, UserSummaryDto>
 {
-    Task<ServiceResult<User>> GetByUsernameAsync(string username);
-    Task<ServiceResult<User>> GetByEmailAsync(string email);
-    Task<ServiceResult<User>> RegisterUserAsync(User user, string password);
-    Task<ServiceResult<User>> AuthenticateAsync(string username, string password);
-    Task<ServiceResult<bool>> ChangePasswordAsync(int userId, string currentPassword, string newPassword);
-    Task<ServiceResult<bool>> ResetPasswordAsync(string email);
-    Task<ServiceResult<User>> UpdateProfileAsync(User user);
-    Task<ServiceResult<IEnumerable<User>>> GetActiveUsersAsync();
-    Task<ServiceResult<User>> GetUserWithRelationsAsync(int userId);
-    Task<ServiceResult<bool>> DeactivateUserAsync(int userId);
-    Task<ServiceResult<bool>> ActivateUserAsync(int userId);
+    Task<ServiceResult<UserResponseDto>> GetByEmailAsync(string email);
+    Task<ServiceResult<UserResponseDto>> RegisterUserAsync(UserCreateDto createDto);
+    Task<ServiceResult<UserResponseDto>> AuthenticateAsync(UserLoginDto loginDto);
+    Task<ServiceResult<bool>> ChangePasswordAsync(UserChangePasswordDto changePasswordDto);
+    Task<ServiceResult<IEnumerable<UserSummaryDto>>> GetActiveUsersAsync();
+    Task<ServiceResult<UserResponseDto>> GetUserWithRelationsAsync(int id);
+    Task<ServiceResult<bool>> DeactivateUserAsync(int id);
+    Task<ServiceResult<bool>> ActivateUserAsync(int id);
     Task<ServiceResult<bool>> IsUsernameAvailableAsync(string username);
     Task<ServiceResult<bool>> IsEmailAvailableAsync(string email);
 } 

@@ -16,16 +16,11 @@ public class InvoiceItemRepository : GenericRepository<InvoiceItem>, IInvoiceIte
         return await _dbSet.Where(ii => ii.InvoiceID == invoiceId).ToListAsync();
     }
 
-    public async Task<IEnumerable<InvoiceItem>> GetItemsByTypeAsync(string itemType)
-    {
-        return await _dbSet.Where(ii => ii.ItemType == itemType).ToListAsync();
-    }
-
     public async Task<decimal> GetTotalAmountByInvoiceAsync(int invoiceId)
     {
         return await _dbSet
             .Where(ii => ii.InvoiceID == invoiceId)
-            .SumAsync(ii => ii.Amount);
+            .SumAsync(ii => ii.TotalPrice);
     }
 
     public async Task<decimal> GetTotalQuantityByInvoiceAsync(int invoiceId)

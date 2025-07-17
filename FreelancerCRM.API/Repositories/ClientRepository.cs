@@ -41,10 +41,12 @@ public class ClientRepository : GenericRepository<Client>, IClientRepository
         return await _dbSet.Where(c => c.City == city).ToListAsync();
     }
 
+    /* Türkiye'ye özgü metodlar - İleride kullanılabilir
     public async Task<Client?> GetClientByTaxNumberAsync(string taxNumber)
     {
         return await _dbSet.FirstOrDefaultAsync(c => c.TaxNumber == taxNumber);
     }
+    */
 
     public async Task<Client?> GetClientWithProjectsAsync(int clientId)
     {
@@ -63,7 +65,6 @@ public class ClientRepository : GenericRepository<Client>, IClientRepository
     public async Task<Client?> GetClientWithAllRelationsAsync(int clientId)
     {
         return await _dbSet
-            .Include(c => c.User)
             .Include(c => c.Projects)
             .Include(c => c.Invoices)
             .FirstOrDefaultAsync(c => c.ClientID == clientId);
@@ -72,10 +73,15 @@ public class ClientRepository : GenericRepository<Client>, IClientRepository
     public async Task<IEnumerable<Client>> SearchClientsAsync(string searchTerm)
     {
         return await _dbSet
-            .Where(c => c.CompanyName.Contains(searchTerm) ||
-                       c.ContactFirstName!.Contains(searchTerm) ||
-                       c.ContactLastName!.Contains(searchTerm) ||
-                       c.Email!.Contains(searchTerm))
+            .Where(c => 
+                c.CompanyName.Contains(searchTerm) ||
+                c.ContactFirstName!.Contains(searchTerm) ||
+                c.ContactLastName!.Contains(searchTerm) ||
+                c.Email!.Contains(searchTerm) ||
+                c.Phone!.Contains(searchTerm) ||
+                c.City!.Contains(searchTerm) ||
+                c.Country!.Contains(searchTerm) ||
+                c.Industry!.Contains(searchTerm))
             .ToListAsync();
     }
 } 

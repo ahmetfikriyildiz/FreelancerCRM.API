@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace FreelancerCRM.API.Models;
 
-public class Assignment
+public class Assignment : BaseEntity
 {
     [Key]
     public int AssignmentID { get; set; }
@@ -28,8 +28,6 @@ public class Assignment
     public DateTime? StartDate { get; set; }
     public DateTime? CompletedDate { get; set; }
     public DateTime? CompletedAt => CompletedDate; // Mapping için alias
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
     public bool IsActive => Status != "Cancelled";
     // Navigation Properties
     public Project? Project { get; set; }

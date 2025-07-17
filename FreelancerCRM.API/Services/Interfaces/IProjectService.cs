@@ -1,8 +1,9 @@
+using FreelancerCRM.API.DTOs;
 using FreelancerCRM.API.Models;
 
 namespace FreelancerCRM.API.Services.Interfaces;
 
-public interface IProjectService : IBaseService<Project>
+public interface IProjectService : IBaseService<Project, ProjectCreateDto, ProjectUpdateDto, ProjectResponseDto, ProjectSummaryDto>
 {
     Task<ServiceResult<IEnumerable<Project>>> GetProjectsByUserIdAsync(int userId);
     Task<ServiceResult<IEnumerable<Project>>> GetProjectsByClientIdAsync(int clientId);

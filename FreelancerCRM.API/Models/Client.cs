@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace FreelancerCRM.API.Models;
 
-public class Client
+public class Client : BaseEntity
 {
     [Key]
     public int ClientID { get; set; }
@@ -26,7 +26,7 @@ public class Client
     [MaxLength(100)]
     public string? City { get; set; }
     [MaxLength(100)]
-    public string Country { get; set; } = "Türkiye";
+    public string Country { get; set; } = "United States";
     [MaxLength(255)]
     public string? Website { get; set; }
     [MaxLength(100)]
@@ -38,17 +38,10 @@ public class Client
     public bool IsActive => Status != "Inactive";
     [MaxLength(20)]
     public string? Status { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
     public string? Notes { get; set; }
     public bool IsArchived { get; set; } = false;
     public DateTime? ArchivedAt { get; set; }
-    // Türkiye'ye özgü alanlar
-    [MaxLength(20)]
-    public string? TaxNumber { get; set; }
-    [MaxLength(50)]
-    public string? TaxOffice { get; set; }
-    public bool IsKDVMukellefi { get; set; }
+
     // Navigation Properties
     public User? User { get; set; }
     public ICollection<Project>? Projects { get; set; }

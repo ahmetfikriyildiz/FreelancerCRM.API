@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace FreelancerCRM.API.Models;
 
-public class Project
+public class Project : BaseEntity
 {
     [Key]
     public int ProjectID { get; set; }
@@ -27,8 +27,7 @@ public class Project
     [MaxLength(20)]
     public string? ContractType { get; set; }
     public decimal HourlyRate { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public bool IsActive { get; set; } = true;
     // Navigation Properties
     public User? User { get; set; }
     public Client? Client { get; set; }

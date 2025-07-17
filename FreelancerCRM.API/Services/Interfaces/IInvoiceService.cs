@@ -1,8 +1,9 @@
+using FreelancerCRM.API.DTOs;
 using FreelancerCRM.API.Models;
 
 namespace FreelancerCRM.API.Services.Interfaces;
 
-public interface IInvoiceService : IBaseService<Invoice>
+public interface IInvoiceService : IBaseService<Invoice, InvoiceCreateDto, InvoiceUpdateDto, InvoiceResponseDto, InvoiceSummaryDto>
 {
     Task<ServiceResult<IEnumerable<Invoice>>> GetInvoicesByUserIdAsync(int userId);
     Task<ServiceResult<IEnumerable<Invoice>>> GetInvoicesByClientIdAsync(int clientId);

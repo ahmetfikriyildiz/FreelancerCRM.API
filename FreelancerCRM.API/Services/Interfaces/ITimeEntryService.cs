@@ -1,8 +1,9 @@
+using FreelancerCRM.API.DTOs;
 using FreelancerCRM.API.Models;
 
 namespace FreelancerCRM.API.Services.Interfaces;
 
-public interface ITimeEntryService : IBaseService<TimeEntry>
+public interface ITimeEntryService : IBaseService<TimeEntry, TimeEntryCreateDto, TimeEntryUpdateDto, TimeEntryResponseDto, TimeEntrySummaryDto>
 {
     Task<ServiceResult<IEnumerable<TimeEntry>>> GetTimeEntriesByUserIdAsync(int userId);
     Task<ServiceResult<IEnumerable<TimeEntry>>> GetTimeEntriesByProjectIdAsync(int projectId);
