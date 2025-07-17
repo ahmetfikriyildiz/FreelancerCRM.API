@@ -121,13 +121,28 @@ public class UserService : BaseService<User, UserCreateDto, UserUpdateDto, UserR
             var user = _mapper.Map<User>(createDto);
             user.Username = createDto.Email;
             user.PasswordHash = HashPassword(createDto.Password);
+            user.Role = UserRole.Freelancer; // Default role
             user.IsActive = true;
 
-            // Use base class implementation for the rest
-            return await base.CreateAsync(createDto);
+            // Validate entity
+            var validationResult = await ValidateEntityAsync(user, false);
+            if (!validationResult.IsValid)
+            {
+                return ServiceResult<UserResponseDto>.ValidationFailure(validationResult.Errors);
+            }
+
+            // Save to database
+            await _unitOfWork.BeginTransactionAsync();
+            var createdUser = await CreateEntityAsync(user);
+            await _unitOfWork.SaveChangesAsync();
+            await _unitOfWork.CommitTransactionAsync();
+
+            var responseDto = _mapper.Map<UserResponseDto>(createdUser);
+            return ServiceResult<UserResponseDto>.Success(responseDto);
         }
         catch (Exception ex)
         {
+            await _unitOfWork.RollbackTransactionAsync();
             _logger.LogError(ex, "Error creating user");
             return ServiceResult<UserResponseDto>.Failure("An error occurred while creating the user");
         }
@@ -354,14 +369,12 @@ public class UserService : BaseService<User, UserCreateDto, UserUpdateDto, UserR
 
     private string HashPassword(string password)
     {
-        using var sha256 = SHA256.Create();
-        var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-        return Convert.ToBase64String(hashedBytes);
+        return BCrypt.Net.BCrypt.HashPassword(password);
     }
 
     private bool VerifyPassword(string password, string hash)
     {
-        return HashPassword(password) == hash;
+        return BCrypt.Net.BCrypt.Verify(password, hash);
     }
     #endregion
 } 

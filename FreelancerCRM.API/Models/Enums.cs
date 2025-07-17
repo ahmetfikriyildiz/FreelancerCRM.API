@@ -1,5 +1,12 @@
 namespace FreelancerCRM.API.Models
 {
+    public enum UserRole
+    {
+        Admin = 1,
+        Freelancer = 2,
+        Client = 3
+    }
+
     public enum ProjectStatus
     {
         Planning = 1,

@@ -14,6 +14,9 @@ public class User : BaseEntity
     [Required]
     public string PasswordHash { get; set; } = null!;
     
+    [Required]
+    public UserRole Role { get; set; }
+    
     [MaxLength(100)]
     public string FirstName { get; set; } = null!;
     

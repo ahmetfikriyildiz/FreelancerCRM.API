@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using FreelancerCRM.API.Models;
 
 namespace FreelancerCRM.API.DTOs
 {
@@ -65,17 +66,15 @@ namespace FreelancerCRM.API.DTOs
     public class UserResponseDto
     {
         public int Id { get; set; }
+        public string Username { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string FullName => $"{FirstName} {LastName}";
         public string Email { get; set; } = string.Empty;
-        public string? PhoneNumber { get; set; }
-        public string? TCKN { get; set; }
-        public string? TaxNumber { get; set; }
-        public string? TaxOffice { get; set; }
-        public bool IsKDVMukellefi { get; set; }
-        public string? Address { get; set; }
-        public bool KVKKConsent { get; set; }
+        public string? Phone { get; set; }
+        public string? ProfilePicture { get; set; }
+        public string? Timezone { get; set; }
+        public UserRole Role { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

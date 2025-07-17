@@ -44,6 +44,9 @@ namespace FreelancerCRM.API.Controllers
             var result = await _timeEntryService.CreateAsync(createDto);
             if (!result.IsSuccess)
                 return BadRequest(result.ErrorMessage);
+            
+            if (result.Data == null)
+                return StatusCode(500, "Created client data is null");
 
             return CreatedAtAction(nameof(GetById), new { id = result.Data.Id }, result.Data);
         }
